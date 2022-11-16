@@ -8,9 +8,9 @@ module.exports = function (app) {
 
 
   var plugin = {};
-  plugin.id = 'signalktracklogger';
-  plugin.name = 'SignlkTrackLogger';
-  plugin.description = 'Simple SignalK track logger';
+  plugin.id = 'signalk-to-nfl';
+  plugin.name = 'SignalK To NFL';
+  plugin.description = 'SignalK track logger to Noforeignland';
 
   plugin.schema = {
     "title": plugin.name,
