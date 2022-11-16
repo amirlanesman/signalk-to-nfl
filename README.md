@@ -12,3 +12,6 @@ An internet connection is required in order to update NFL.
 * A **noforeignland.com** account
 * Set your email account in NFL: Account > Settings > Boat tracking > GPX Imports > GPX track export email address
 * If using Gmail, get an 'App Password': https://support.google.com/mail/answer/185833?hl=en
+
+## TODOs
+* Split cache files at specific size to prevent huge emails.

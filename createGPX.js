@@ -57,7 +57,6 @@ async function processLineByLine() {
   // ('\r\n') in input.txt as a single line break.
 
   for await (const line of rl) {
-    // Each line in input.txt will be successively available here as `line`.
     console.log(`Line from file: ${line}`);
     const split = line.split(',');
     const point = { lat: split[0], lon: split[1], timestamp: split[2] };

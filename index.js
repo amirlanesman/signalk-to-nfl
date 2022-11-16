@@ -1,7 +1,10 @@
+const internetTestAddress = 'google.com';
+const internetTestTimeout = 1000;
+
 module.exports = function (app) {
+  const isReachable = require('is-reachable');
   const sendEmail = require('./sendEmail');
   const createGPX = require('./createGPX');
-  const checkInternet = require('./checkInternet');
   const fs = require('fs-extra');
   const path = require('path');
   const CronJob = require('cron').CronJob;
@@ -10,7 +13,7 @@ module.exports = function (app) {
   var plugin = {};
   plugin.id = 'signalk-to-nfl';
   plugin.name = 'SignalK To NFL';
-  plugin.description = 'SignalK track logger to Noforeignland';
+  plugin.description = 'SignalK track logger to noforeignland.com';
 
   plugin.schema = {
     "title": plugin.name,
@@ -209,7 +212,7 @@ module.exports = function (app) {
 
     async function testInternet() {
       app.debug('testing internet connection');
-      const check = await checkInternet();
+      const check = await isReachable(internetTestAddress, {timeout: internetTestTimeout});
       app.debug('internet connection = ', check);
       return check;
     }
