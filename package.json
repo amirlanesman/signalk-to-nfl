@@ -1,7 +1,7 @@
 {
   "name": "signalk-to-nfl",
   "version": "0.0.1",
-  "description": "SignalK track logger to NFL",
+  "description": "SignalK track logger to noforeignland.com",
   "main": "index.js",
   "keywords": [
     "signalk-node-server-plugin",
