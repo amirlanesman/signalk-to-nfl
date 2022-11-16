@@ -1,0 +1,28 @@
+{
+  "name": "signalk-to-nfl",
+  "version": "0.0.1",
+  "description": "SignalK track logger to NFL",
+  "main": "index.js",
+  "keywords": [
+    "signalk-node-server-plugin",
+    "signalk-category-utility"
+  ],
+  "author": "Amir Lanesman",
+  "homepage": "https://github.com/amirlanesman/signalk-track-logger#readme",
+  "bugs": {
+    "url": "https://github.com/amirlanesman/signalk-track-logger/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amirlanesman/signalk-track-logger.git"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "cron": "^2.1.0",
+    "dns": "^0.2.2",
+    "fs-extra": "^10.1.0",
+    "nodemailer": "^6.8.0"
+  }
+}
