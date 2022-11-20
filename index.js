@@ -23,58 +23,58 @@ module.exports = function (app) {
     "properties": {
       "trackDir": {
         "type": "string",
-        "title": "Directory with tracks",
-        "description": "Path in server filesystem, absolute or from plugin directory",
+        "title": "Directory with tracks to cache tracks.",
+        "description": "Path in server filesystem, absolute or from plugin directory. optional param.",
       },
       "trackFrequency": {
         "type": "integer",
-        "title": "Position registration frequency, sec.",
-        "description": "The points will be placed after so seconds, but not more often than through the minimum distance. If 0 - every fix.",
+        "title": "Position tracking frequency, sec.",
+        "description": "To keep file sizes small we only log positions once in a while (unless you set this value to 0)",
         "default": 60
       },
       "minMove": {
         "type": "number",
-        "title": "A minimum move distance in meters",
-        "description": "It may include a fractional decimal part. Motions shorter than this will not be logged.",
+        "title": "Minimum boat move to log",
+        "description": "To keep file sizes small we only log positions if a move larger than this size is noted (if set to 0 will log every move)",
         "default": 50
       },
       "filterSource": {
         "type": "string",
-        "title": "Filter position source",
-        "description": "The source for which to track",
+        "title": "Position source device",
+        "description": "Set this value to the name of a source if you want to only use the position given by that source.",
       },
       "emailCron": {
         "type": "string",
-        "title": "Email Attempt Cron",
-        "description": "At what intervals to try and send GPX. CRON format: https://crontab.guru/",
-        "default": '30 * * * *',
+        "title": "Email attempt CRON",
+        "description": "We send the tracking email to NFL once in a while, you can set the schedule with this setting. CRON format: https://crontab.guru/",
+        "default": '*/30 * * * *',
       },
       "emailService": {
         "type": "string",
-        "title": "Email service in use",
-        "description": "Email User for outgoing mail from this list: https://community.nodemailer.com/2-0-0-beta/setup-smtp/well-known-services/",
+        "title": "Email service in use to send tracking reports",
+        "description": "Email service for outgoing mail from this list: https://community.nodemailer.com/2-0-0-beta/setup-smtp/well-known-services/",
         "default": 'gmail',
       },
       "emailUser": {
         "type": "string",
         "title": "Email user",
-        "description": "Email User for outgoing mail. Normally should be set to the your email.",
+        "description": "Email user for outgoing mail. Normally should be set to the your email.",
       },
       "emailPassword": {
         "type": "string",
         "title": "Email user password",
-        "description": "Email User password for outgoing mail",
+        "description": "Email user password for outgoing mail. check out the readme 'Requirements' section for more info.",
       },
       "emailFrom": {
         "type": "string",
         "title": "Email 'From' address",
-        "description": "Address must be set in NFL. Normally should be set to the your email.",
+        "description": "Address must be set in NFL. Normally should be set to the your email. check out the readme 'Requirements' section for more info.",
       },
       "emailTo": {
         "type": "string",
         "title": "Email 'to' address",
-        "description": "Email address to send track GPX files to. defaults to: gpx@noforeignland-cloud.appspotmail.com",
-        "default": 'gpx@noforeignland-cloud.appspotmail.com',
+        "description": "Email address to send track GPX files to. defaults to: tracking@noforeignland.com. (can be set to your own email for testing purposes)",
+        "default": 'tracking@noforeignland.com',
       },
     }
   };
@@ -85,12 +85,12 @@ module.exports = function (app) {
   let lastPosition;
   let cron;
   const creator = 'signalk-track-logger';
+  const defaultTracksDir = 'track';
 
   plugin.start = function (options, restartPlugin) {
-    if (!options.trackDir) options.trackDir = 'track';
-    if (options.trackDir[0] != '/') options.trackDir = path.join(__dirname, options.trackDir);	// если путь не абсолютный -- сделаем абсолютным
+    if (!options.trackDir) options.trackDir = defaultTracksDir;
+    if (!path.isAbsolute(options.trackDir)) options.trackDir = path.join(__dirname, options.trackDir);
     //app.debug('options.trackDir=',options.trackDir);
-    // Создание каталога для записи лога
     if (!createDir(options.trackDir)) {
       plugin.stop();
       return;
@@ -167,9 +167,6 @@ module.exports = function (app) {
     } // end function equirectangularDistance
 
     function createDir(dir) {
-      // создаёт указанный каталог, если его нет
-      // а если есть -- проверяет на права
-      // возвращает bool
       let res = true;
       if (fs.existsSync(dir)) {
         try {

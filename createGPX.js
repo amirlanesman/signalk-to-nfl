@@ -44,29 +44,4 @@ async function writeFooter(options) {
   fs.appendFileSync(path.join(options.outputDir, 'track.gpx'), footer);
 }
 
-
-const creator = 'signalktracker'
-async function processLineByLine() {
-  const fileStream = fs.createReadStream('input.txt');
-
-  const rl = readline.createInterface({
-    input: fileStream,
-    crlfDelay: Infinity
-  });
-  // Note: we use the crlfDelay option to recognize all instances of CR LF
-  // ('\r\n') in input.txt as a single line break.
-
-  for await (const line of rl) {
-    console.log(`Line from file: ${line}`);
-    const split = line.split(',');
-    const point = { lat: split[0], lon: split[1], timestamp: split[2] };
-    console.log(`point: ${JSON.stringify(point)}`);
-    let trkpt = '			<trkpt ';
-    trkpt += `lat="${point.lat}" lon="${point.lon}">\n`;
-    trkpt += `				<time> ${point.timestamp} </time>\n`;
-    trkpt += '			</trkpt>\n';
-    await fs.appendFile('track.gpx',trkpt);
-  }
-}
-
 module.exports = createGPX;

@@ -5,7 +5,7 @@ async function sendEmail(options) {
         service: options.emailService,
         auth: {
             user: options.user,
-            pass: options.password,//'baacqcvrwktmjhgd'
+            pass: options.password,
         }
     });
     var mailOptions = {

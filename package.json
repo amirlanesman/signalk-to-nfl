@@ -1,6 +1,6 @@
 {
   "name": "signalk-to-nfl",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "SignalK track logger to noforeignland.com",
   "main": "index.js",
   "keywords": [
