@@ -12,13 +12,14 @@ async function createGPX(options) {
     });
 
     for await (const line of rl) {
-        const split = line.split(',');
-        const point = { lat: split[0], lon: split[1], timestamp: split[2] };
+      if (line){        
+        const point = JSON.parse(line);
         let trkpt = '			<trkpt ';
         trkpt += `lat="${point.lat}" lon="${point.lon}">\n`;
-        trkpt += `				<time> ${point.timestamp} </time>\n`;
+        trkpt += `				<time>${point.t}</time>\n`;
         trkpt += '			</trkpt>\n';
         fs.appendFileSync(path.join(options.outputDir, 'track.gpx'), trkpt);
+      }
     }
     await writeFooter(options);
     return [path.join(options.outputDir, 'track.gpx')];

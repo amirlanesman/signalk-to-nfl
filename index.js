@@ -1,3 +1,4 @@
+const {EOL} = require('os');
 const internetTestAddress = 'google.com';
 const internetTestTimeout = 1000;
 
@@ -47,7 +48,7 @@ module.exports = function (app) {
         "type": "string",
         "title": "Email attempt CRON",
         "description": "We send the tracking email to NFL once in a while, you can set the schedule with this setting. CRON format: https://crontab.guru/",
-        "default": '*/30 * * * *',
+        "default": '*/10 * * * *',
       },
       "emailService": {
         "type": "string",
@@ -81,7 +82,7 @@ module.exports = function (app) {
 
   var unsubscribes = []; 
   var unsubscribesControl = [];
-  var routeSaveName = 'track.txt'; 
+  var routeSaveName = 'track.jsonl'; 
   let lastPosition;
   let cron;
   const creator = 'signalk-track-logger';
@@ -132,7 +133,10 @@ module.exports = function (app) {
           update.values.forEach(value => {
             // app.debug(`value:`, value);
 
-            if (options.minMove && lastPosition && (equirectangularDistance(lastPosition.pos, value.value) < options.minMove)) {
+            if (!isDefined(value.value.latitude) || !isDefined(value.value.longitude))  {
+              return;
+            }
+            if (options.minMove && lastPosition && equirectangularDistance(lastPosition.pos, value.value) < options.minMove) {
               return;
             }
             lastPosition = {pos: value.value, timestamp };
@@ -140,17 +144,23 @@ module.exports = function (app) {
           });
         });
       } // end function doOnValue
-    } // end function realDoLogging
+    } // end function doLogging
 
     function savePoint(point) {
       //{pos: {latitude, longitude}, timestamp}
       // Date.parse(timestamp)
-      app.debug(`save data point:`, point);
-
-      fs.appendFileSync(path.join(options.trackDir, routeSaveName), `${point.pos.latitude},${point.pos.longitude},${point.timestamp}\n`);
+      const obj = {
+        lat: point.pos.latitude,
+        lon: point.pos.longitude,
+        t: point.timestamp,
+      }
+      app.debug(`save data point:`, obj);
+      fs.appendFileSync(path.join(options.trackDir, routeSaveName), JSON.stringify(obj) + EOL);
     }
 
-
+    function isDefined(obj) {
+      return (obj !== undefined && obj !== null);
+    }
 
     function equirectangularDistance(from, to) {
       // https://www.movable-type.co.uk/scripts/latlong.html
