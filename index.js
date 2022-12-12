@@ -73,6 +73,12 @@ module.exports = function (app) {
         "description": "Email address to send track GPX files to. defaults to: tracking@noforeignland.com. (can be set to your own email for testing purposes)",
         "default": 'tracking@noforeignland.com',
       },
+      "internetTestTimeout": {
+        "type": "number",
+        "title": "Timeout for testing internet connection in ms",
+        "description": "Set this number higher for slower computers and internet connections",
+        "default": 2000,
+      },
       "filterSource": {
         "type": "string",
         "title": "Position source device",
@@ -273,7 +279,7 @@ module.exports = function (app) {
 
     async function testInternet() {
       app.debug('testing internet connection');
-      const check = await isReachable(internetTestAddress, { timeout: internetTestTimeout });
+      const check = await isReachable(internetTestAddress, { timeout: options.internetTestTimeout || internetTestTimeout });
       app.debug('internet connection = ', check);
       return check;
     }
