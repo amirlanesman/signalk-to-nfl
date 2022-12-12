@@ -1,4 +1,4 @@
-const {EOL} = require('os');
+const { EOL } = require('os');
 const internetTestAddress = 'google.com';
 const internetTestTimeout = 1000;
 
@@ -22,27 +22,23 @@ module.exports = function (app) {
     "type": "object",
     "required": ["emailCron", "emailService", "emailUser", "emailPassword", "emailFrom", "emailTo"],
     "properties": {
-      "trackDir": {
-        "type": "string",
-        "title": "Directory with tracks to cache tracks.",
-        "description": "Path in server filesystem, absolute or from plugin directory. optional param.",
-      },
       "trackFrequency": {
         "type": "integer",
-        "title": "Position tracking frequency, sec.",
+        "title": "Position tracking frequency in seconds.",
         "description": "To keep file sizes small we only log positions once in a while (unless you set this value to 0)",
         "default": 60
       },
       "minMove": {
         "type": "number",
-        "title": "Minimum boat move to log",
+        "title": "Minimum boat move to log in meters",
         "description": "To keep file sizes small we only log positions if a move larger than this size is noted (if set to 0 will log every move)",
         "default": 50
       },
-      "filterSource": {
-        "type": "string",
-        "title": "Position source device",
-        "description": "Set this value to the name of a source if you want to only use the position given by that source.",
+      "minSpeed": {
+        "type": "number",
+        "title": "Minimum boat speed to log in knots",
+        "description": "To keep file sizes small we only log positions if boat speed goes above this value to minimize recording position on anchor or mooring (if set to 0 will log every move)",
+        "default": 1.5
       },
       "emailCron": {
         "type": "string",
@@ -77,12 +73,22 @@ module.exports = function (app) {
         "description": "Email address to send track GPX files to. defaults to: tracking@noforeignland.com. (can be set to your own email for testing purposes)",
         "default": 'tracking@noforeignland.com',
       },
+      "filterSource": {
+        "type": "string",
+        "title": "Position source device",
+        "description": "Set this value to the name of a source if you want to only use the position given by that source.",
+      },
+      "trackDir": {
+        "type": "string",
+        "title": "Directory with tracks to cache tracks.",
+        "description": "Path in server filesystem, absolute or from plugin directory. optional param (only used to keep file cache).",
+      },
     }
   };
 
-  var unsubscribes = []; 
+  var unsubscribes = [];
   var unsubscribesControl = [];
-  var routeSaveName = 'track.jsonl'; 
+  var routeSaveName = 'track.jsonl';
   let lastPosition;
   let cron;
   const creator = 'signalk-track-logger';
@@ -103,6 +109,8 @@ module.exports = function (app) {
     doLogging();
 
     function doLogging() {
+      let shouldDoLog = true
+      //subscribe for position
       app.subscriptionmanager.subscribe({
         "context": "vessels.self",
         "subscribe": [
@@ -122,6 +130,45 @@ module.exports = function (app) {
         doOnValue	// функция обработки каждой delta
       ); // end subscriptionmanager
 
+      //subscribe for speed
+      if (options.minSpeed) {
+        app.subscriptionmanager.subscribe({
+          "context": "vessels.self",
+          "subscribe": [
+            {
+              "path": "navigation.speedOverGround",
+              "format": "delta",
+              "policy": "instant",
+            }
+          ]
+        },
+          unsubscribes,
+          subscriptionError => {
+            app.debug('Error subscription to data:' + subscriptionError);
+            app.setPluginError('Error subscription to data:' + subscriptionError.message);
+          },
+          delta => {
+            // app.debug('got speed delta', delta);
+            delta.updates.forEach(update => {
+              // app.debug(`update:`, update);
+              if (shouldDoLog) {
+                return;
+              }
+              if (options.filterSource && update.$source !== options.filterSource) {
+                return;
+              }
+              update.values.forEach(value => {
+                // value.value is sog in m/s so 'sog*2' is in knots
+                if (options.minSpeed < value.value * 2) {
+                  app.debug('setting shouldDoLog to true');
+                  shouldDoLog = true;
+                }
+              })
+            })
+          }
+        );
+      }
+
       function doOnValue(delta) {
 
         delta.updates.forEach(update => {
@@ -133,14 +180,21 @@ module.exports = function (app) {
           update.values.forEach(value => {
             // app.debug(`value:`, value);
 
-            if (!isDefined(value.value.latitude) || !isDefined(value.value.longitude))  {
+            if (!shouldDoLog) {
+              return;
+            }
+            if (!isDefined(value.value.latitude) || !isDefined(value.value.longitude)) {
               return;
             }
             if (options.minMove && lastPosition && equirectangularDistance(lastPosition.pos, value.value) < options.minMove) {
               return;
             }
-            lastPosition = {pos: value.value, timestamp };
+            lastPosition = { pos: value.value, timestamp };
             savePoint(lastPosition);
+            if (options.minSpeed) {
+              app.debug('setting shouldDoLog to false');
+              shouldDoLog = false;
+            }
           });
         });
       } // end function doOnValue
@@ -169,10 +223,10 @@ module.exports = function (app) {
       const φ1 = from.latitude * rad;
       const φ2 = to.latitude * rad;
       const Δλ = (to.longitude - from.longitude) * rad;
-      const R = 6371e3;	// метров
+      const R = 6371e3;
       const x = Δλ * Math.cos((φ1 + φ2) / 2);
       const y = (φ2 - φ1);
-      const d = Math.sqrt(x * x + y * y) * R;	// метров
+      const d = Math.sqrt(x * x + y * y) * R;
       return d;
     } // end function equirectangularDistance
 
@@ -211,7 +265,7 @@ module.exports = function (app) {
       return res;
     } // end function createDir
 
-    async function interval(){
+    async function interval() {
       if (await checkTrack() && await testInternet()) {
         await sendData();
       }
@@ -219,50 +273,50 @@ module.exports = function (app) {
 
     async function testInternet() {
       app.debug('testing internet connection');
-      const check = await isReachable(internetTestAddress, {timeout: internetTestTimeout});
+      const check = await isReachable(internetTestAddress, { timeout: internetTestTimeout });
       app.debug('internet connection = ', check);
       return check;
     }
-    
+
     async function checkTrack() {
       const trackFile = path.join(options.trackDir, routeSaveName);
       app.debug('checking the track', trackFile, 'if should send');
       const exists = await fs.pathExists(trackFile);
       const size = exists ? (await fs.lstat(trackFile)).size : 0;
       app.debug(`'${trackFile}'.size=${size} ${trackFile}'.exists=${exists}`);
-      return  size > 0;
+      return size > 0;
     }
-    
-    async function sendData(){
+
+    async function sendData() {
       app.debug('sending the data');
-      const gpxFiles = await createGPX({input: path.join(options.trackDir, routeSaveName), outputDir: options.trackDir, creator});
+      const gpxFiles = await createGPX({ input: path.join(options.trackDir, routeSaveName), outputDir: options.trackDir, creator });
       app.debug('created GPX files', gpxFiles);
       try {
         for (let file of gpxFiles) {
           app.debug('sending', file);
           try {
             !await sendEmail({
-            emailService: options.emailService,
-            user: options.emailUser,
-            password: options.emailPassword,
-            from: options.emailFrom,
-            to: options.emailTo,
-            trackFile: file
+              emailService: options.emailService,
+              user: options.emailUser,
+              password: options.emailPassword,
+              from: options.emailFrom,
+              to: options.emailTo,
+              trackFile: file
             })
-          } catch (err){
-            app.debug('Sending email failed:', err);          
+          } catch (err) {
+            app.debug('Sending email failed:', err);
             return;
           }
-        } 
+        }
       } finally {
         for (let file of gpxFiles) {
           app.debug('deleting', file);
           fs.rmSync(file);
-        } 
+        }
       }
       fs.rmSync(path.join(options.trackDir, routeSaveName));
     }
-    
+
     app.debug('Setting CRON to ', options.emailCron);
     cron = new CronJob(
       options.emailCron,
