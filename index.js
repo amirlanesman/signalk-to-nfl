@@ -189,6 +189,10 @@ module.exports = function (app) {
             if (!shouldDoLog) {
               return;
             }
+            if (lastPosition && new Date(lastPosition.timestamp).getTime() > new Date(timestamp).getTime()) {
+              // SK sometimes messes up timestamps, when that happens we throw the update
+              return;
+            }
             if (!isDefined(value.value.latitude) || !isDefined(value.value.longitude)) {
               return;
             }
