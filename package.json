@@ -1,6 +1,6 @@
 {
   "name": "signalk-to-nfl",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "SignalK track logger to noforeignland.com",
   "main": "index.js",
   "keywords": [
@@ -24,7 +24,7 @@
     "fs-extra": "^10.1.0",
     "gpxparser": "^3.0.8",
     "is-reachable": "^5.2.1",
-    "node-fetch": "^3.3.0",
+    "node-fetch": "^2.6.7",
     "nodemailer": "^6.8.0"
   }
 }
