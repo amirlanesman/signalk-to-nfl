@@ -307,7 +307,7 @@ module.exports = function (app) {
         return false;
       }
       const secsSinceLastPoint = (new Date().getTime() - lastPosition.currentTime)/1000
-      if (secsSinceLastPoint > options.trackFrequency) {
+      if (secsSinceLastPoint > (options.trackFrequency * 2)) {
         app.debug('Boat stopped moving, last move', secsSinceLastPoint,'seconds ago');
         return true;
       } else {
