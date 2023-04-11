@@ -211,7 +211,7 @@ module.exports = function (app) {
               // SK sometimes messes up timestamps, when that happens we throw the update
               return;
             }
-            if (!isDefined(value.value.latitude) || !isDefined(value.value.longitude)) {
+            if (!isDefinedNumber(value.value.latitude) || !isDefinedNumber(value.value.longitude)) {
               return;
             }
             if (options.minMove && lastPosition && equirectangularDistance(lastPosition.pos, value.value) < options.minMove) {
@@ -240,8 +240,8 @@ module.exports = function (app) {
       fs.appendFileSync(path.join(options.trackDir, routeSaveName), JSON.stringify(obj) + EOL);
     }
 
-    function isDefined(obj) {
-      return (obj !== undefined && obj !== null);
+    function isDefinedNumber(obj) {
+      return (obj !== undefined && obj !== null && typeof obj === 'number');
     }
 
     function equirectangularDistance(from, to) {
@@ -343,6 +343,10 @@ module.exports = function (app) {
     async function sendApiData() {
       app.debug('sending the data');
       const trackData = await createTrack(path.join(options.trackDir, routeSaveName));
+      if (!trackData) {
+        app.debug('Recorded track did not contain any valid track points, aborting sending.');
+        return;
+      }
       app.debug('created track data with timestamp:', new Date(trackData.timestamp));
 
       const params = new URLSearchParams();
@@ -392,11 +396,15 @@ async function createTrack(inputPath) {
   for await (const line of rl) {
     if (line){        
       const point = JSON.parse(line);
-      track.push([point.lat, point.lon])
-      lastTimestamp = point.t
+      if (isDefinedNumber(point.lat) && isDefinedNumber(point.lon)) {
+        track.push([point.lat, point.lon])
+        lastTimestamp = point.t 
+      }
     }
   }
-  return {timestamp: new Date(lastTimestamp).getTime(), track};
+  if (track.length > 0) {
+    return {timestamp: new Date(lastTimestamp).getTime(), track};
+  }
 }
 
     async function sendEmailData() {
