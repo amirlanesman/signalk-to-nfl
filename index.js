@@ -12,6 +12,7 @@ const sendEmail = require('./sendEmail');
 const createGPX = require('./createGPX');
 const apiUrl = 'https://www.noforeignland.com/home/api/v1/boat/tracking/track';
 const pluginApiKey = 'eef6916b-77fa-4538-9870-034a8ab81989';
+// const msToKn = 1.944;
 
 
 module.exports = function (app) {
@@ -120,6 +121,7 @@ module.exports = function (app) {
   let cron;
   const creator = 'signalk-track-logger';
   const defaultTracksDir = 'track';
+  // const maxAllowedSpeed = 100;
 
   plugin.start = function (options, restartPlugin) {
     if (!options.trackDir) options.trackDir = defaultTracksDir;
@@ -154,8 +156,8 @@ module.exports = function (app) {
           app.debug('Error subscription to data:' + subscriptionError);
           app.setPluginError('Error subscription to data:' + subscriptionError.message);
         },
-        doOnValue	// функция обработки каждой delta
-      ); // end subscriptionmanager
+        doOnValue
+      );
 
       //subscribe for speed
       if (options.minSpeed) {
@@ -207,15 +209,23 @@ module.exports = function (app) {
             if (!shouldDoLog) {
               return;
             }
-            if (lastPosition && new Date(lastPosition.timestamp).getTime() > new Date(timestamp).getTime()) {
-              // SK sometimes messes up timestamps, when that happens we throw the update
+            if (!isValidLatitude(value.value.latitude) || !isValidLongitude(value.value.longitude)) {
               return;
             }
-            if (!isDefinedNumber(value.value.latitude) || !isDefinedNumber(value.value.longitude)) {
-              return;
-            }
-            if (options.minMove && lastPosition && equirectangularDistance(lastPosition.pos, value.value) < options.minMove) {
-              return;
+            if (lastPosition) {
+              if (new Date(lastPosition.timestamp).getTime() > new Date(timestamp).getTime()) {
+                app.debug('got error in timestamp:', timestamp, 'is earlier than previous:', lastPosition.timestamp);
+                // SK sometimes messes up timestamps, when that happens we throw the update
+                return;
+              }
+              const distance = equirectangularDistance(lastPosition.pos, value.value)
+              if (options.minMove && distance < options.minMove) {
+                return;
+              }
+              // if (calculatedSpeed(distance, (timestamp - lastPosition.timestamp) / 1000) > maxAllowedSpeed) {
+              //   app.debug('got error position', value.value, 'ignoring...');
+              //   return;
+              // }
             }
             lastPosition = { pos: value.value, timestamp, currentTime: new Date().getTime() };
             savePoint(lastPosition);
@@ -225,8 +235,8 @@ module.exports = function (app) {
             }
           });
         });
-      } // end function doOnValue
-    } // end function doLogging
+      }
+    }
 
     function savePoint(point) {
       //{pos: {latitude, longitude}, timestamp}
@@ -240,9 +250,22 @@ module.exports = function (app) {
       fs.appendFileSync(path.join(options.trackDir, routeSaveName), JSON.stringify(obj) + EOL);
     }
 
+    function isValidLatitude(obj) {
+      return isDefinedNumber(obj) && obj > -90 && obj < 90
+    }
+
+    function isValidLongitude(obj) {
+      return isDefinedNumber(obj) && obj > -180 && obj < 180
+    }
+
     function isDefinedNumber(obj) {
       return (obj !== undefined && obj !== null && typeof obj === 'number');
     }
+
+    // function calculatedSpeed(distance, timeSecs) {
+    //   // m/s to knots ~= speedinms * 1.944
+    //   return (distance / timeSecs) * msToKn
+    // }
 
     function equirectangularDistance(from, to) {
       // https://www.movable-type.co.uk/scripts/latlong.html
@@ -256,7 +279,7 @@ module.exports = function (app) {
       const y = (φ2 - φ1);
       const d = Math.sqrt(x * x + y * y) * R;
       return d;
-    } // end function equirectangularDistance
+    }
 
     function createDir(dir) {
       let res = true;
@@ -302,16 +325,16 @@ module.exports = function (app) {
     function checkBoatMoving() {
       if (options.sendWhileMoving || !options.trackFrequency) {
         return true;
-      } 
+      }
       if (!lastPosition) {
         return false;
       }
-      const secsSinceLastPoint = (new Date().getTime() - lastPosition.currentTime)/1000
+      const secsSinceLastPoint = (new Date().getTime() - lastPosition.currentTime) / 1000
       if (secsSinceLastPoint > (options.trackFrequency * 2)) {
-        app.debug('Boat stopped moving, last move', secsSinceLastPoint,'seconds ago');
+        app.debug('Boat stopped moving, last move', secsSinceLastPoint, 'seconds ago');
         return true;
       } else {
-        app.debug('Boat is still moving, last move', secsSinceLastPoint,'seconds ago');
+        app.debug('Boat is still moving, last move', secsSinceLastPoint, 'seconds ago');
         return false;
       }
     }
@@ -360,13 +383,13 @@ module.exports = function (app) {
 
       app.debug('sending track to API');
       try {
-        const response = await fetch(apiUrl, {method: 'POST', body: params, headers: new fetch.Headers(headers)});
+        const response = await fetch(apiUrl, { method: 'POST', body: params, headers: new fetch.Headers(headers) });
         if (response.ok) {
           const responseBody = await response.json();
           if (responseBody.status === 'ok') {
             app.debug('Track successfully sent to API');
             if (options.keepFiles) {
-              const filename = new Date().toJSON().slice(0,19).replaceAll(':','') + '-track.jsonl';
+              const filename = new Date().toJSON().slice(0, 19).replaceAll(':', '') + '-track.jsonl';
               app.debug('moving and keeping track file: ', filename);
               fs.moveSync(path.join(options.trackDir, routeSaveName), path.join(options.trackDir, filename));
             } else {
@@ -384,28 +407,32 @@ module.exports = function (app) {
       }
     }
 
-async function createTrack(inputPath) {
-  const fileStream = fs.createReadStream(inputPath);
+    async function createTrack(inputPath) {
+      const fileStream = fs.createReadStream(inputPath);
 
-  const rl = readline.createInterface({
-      input: fileStream,
-      crlfDelay: Infinity
-  });
-  const track = []
-  let lastTimestamp;
-  for await (const line of rl) {
-    if (line){        
-      const point = JSON.parse(line);
-      if (isDefinedNumber(point.lat) && isDefinedNumber(point.lon)) {
-        track.push([point.lat, point.lon])
-        lastTimestamp = point.t 
+      const rl = readline.createInterface({
+        input: fileStream,
+        crlfDelay: Infinity
+      });
+      const track = []
+      let lastTimestamp;
+      for await (const line of rl) {
+        if (line) {
+          try {
+            const point = JSON.parse(line);
+            if (isValidLatitude(point.lat) && isValidLongitude(point.lon)) {
+              track.push([point.lat, point.lon])
+              lastTimestamp = point.t
+            }
+          } catch (error) {
+            app.debug('could not parse line from track file:', line);
+          }
+        }
+      }
+      if (track.length > 0) {
+        return { timestamp: new Date(lastTimestamp).getTime(), track };
       }
     }
-  }
-  if (track.length > 0) {
-    return {timestamp: new Date(lastTimestamp).getTime(), track};
-  }
-}
 
     async function sendEmailData() {
       app.debug('sending the data');
