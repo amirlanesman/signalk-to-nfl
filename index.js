@@ -118,6 +118,7 @@ module.exports = function (app) {
   var unsubscribesControl = [];
   var routeSaveName = 'track.jsonl';
   let lastPosition;
+  let upSince;
   let cron;
   const creator = 'signalk-track-logger';
   const defaultTracksDir = 'track';
@@ -195,15 +196,15 @@ module.exports = function (app) {
         );
       }
 
-      function doOnValue(delta) {
+      async function doOnValue(delta) {
 
-        delta.updates.forEach(update => {
+        for (update of delta.updates) {
           // app.debug(`update:`, update);
           if (options.filterSource && update.$source !== options.filterSource) {
             return;
           }
           let timestamp = update.timestamp;
-          update.values.forEach(value => {
+          for (value of update.values) {
             // app.debug(`value:`, value);
 
             if (!shouldDoLog) {
@@ -228,17 +229,17 @@ module.exports = function (app) {
               // }
             }
             lastPosition = { pos: value.value, timestamp, currentTime: new Date().getTime() };
-            savePoint(lastPosition);
+            await savePoint(lastPosition);
             if (options.minSpeed) {
               app.debug('setting shouldDoLog to false');
               shouldDoLog = false;
             }
-          });
-        });
+          };
+        };
       }
     }
 
-    function savePoint(point) {
+    async function savePoint(point) {
       //{pos: {latitude, longitude}, timestamp}
       // Date.parse(timestamp)
       const obj = {
@@ -247,7 +248,7 @@ module.exports = function (app) {
         t: point.timestamp,
       }
       app.debug(`save data point:`, obj);
-      fs.appendFileSync(path.join(options.trackDir, routeSaveName), JSON.stringify(obj) + EOL);
+      await fs.appendFile(path.join(options.trackDir, routeSaveName), JSON.stringify(obj) + EOL);
     }
 
     function isValidLatitude(obj) {
@@ -325,16 +326,15 @@ module.exports = function (app) {
     function checkBoatMoving() {
       if (options.sendWhileMoving || !options.trackFrequency) {
         return true;
-      }
-      if (!lastPosition) {
-        return false;
-      }
-      const secsSinceLastPoint = (new Date().getTime() - lastPosition.currentTime) / 1000
+      } 
+      const time = lastPosition ? lastPosition.currentTime : upSince;
+
+      const secsSinceLastPoint = (new Date().getTime() - time)/1000
       if (secsSinceLastPoint > (options.trackFrequency * 2)) {
-        app.debug('Boat stopped moving, last move', secsSinceLastPoint, 'seconds ago');
+        app.debug('Boat stopped moving, last move at least', secsSinceLastPoint,'seconds ago');
         return true;
       } else {
-        app.debug('Boat is still moving, last move', secsSinceLastPoint, 'seconds ago');
+        app.debug('Boat is still moving, last move', secsSinceLastPoint,'seconds ago');
         return false;
       }
     }
@@ -389,12 +389,12 @@ module.exports = function (app) {
           if (responseBody.status === 'ok') {
             app.debug('Track successfully sent to API');
             if (options.keepFiles) {
-              const filename = new Date().toJSON().slice(0, 19).replaceAll(':', '') + '-track.jsonl';
+              const filename = new Date().toJSON().slice(0, 19).replace(/:/g, '') + '-track.jsonl';
               app.debug('moving and keeping track file: ', filename);
-              fs.moveSync(path.join(options.trackDir, routeSaveName), path.join(options.trackDir, filename));
+              await fs.move(path.join(options.trackDir, routeSaveName), path.join(options.trackDir, filename));
             } else {
               app.debug('Deleting track file');
-              fs.rmSync(path.join(options.trackDir, routeSaveName));
+              await fs.remove(path.join(options.trackDir, routeSaveName));
             }
           } else {
             app.debug('Could not send track to API, returned response json:', responseBody);
@@ -458,11 +458,13 @@ module.exports = function (app) {
       } finally {
         for (let file of gpxFiles) {
           app.debug('deleting', file);
-          fs.rmSync(file);
+          await fs.rm(file);
         }
       }
-      fs.rmSync(path.join(options.trackDir, routeSaveName));
+      await fs.rm(path.join(options.trackDir, routeSaveName));
     }
+
+    upSince = new Date().getTime();
 
     app.debug('Setting CRON to ', options.emailCron);
     cron = new CronJob(
