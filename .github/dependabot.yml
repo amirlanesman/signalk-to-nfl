@@ -1,0 +1,56 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Pacific/Auckland
+    open-pull-requests-limit: 10
+    # The release-please gate releases a runtime dependency bump, which is
+    # `build(deps)`, and not a dev dependency bump, which is `build(deps-dev)`.
+    commit-message:
+      prefix: build
+      prefix-development: build
+      include: scope
+    labels:
+      - dependencies
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # typescript-eslint supports TypeScript below 6.1, so a newer one fails
+      # lint. Raise this when its peer range does.
+      - dependency-name: typescript
+        versions: ['>=6.1']
+      # Keep @types/node on the lowest supported runtime (engines.node,
+      # @tsconfig/node22) so TypeScript rejects Node APIs that don't exist there.
+      - dependency-name: '@types/node'
+        versions: ['>=23']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Pacific/Auckland
+    open-pull-requests-limit: 5
+    # An action bump changes nothing users get, so it is not a releasable one.
+    commit-message:
+      prefix: ci
+      include: scope
+    labels:
+      - dependencies
+      - ci
+    groups:
+      actions-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
